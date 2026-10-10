@@ -10,6 +10,7 @@ type Settings = {
   altPhone: string;
   thirdAddress: string;
   thirdPhone: string;
+  backInstructions: string;
 };
 
 export function OfficeSettingsPanel({ initialSettings }: { initialSettings: Settings }) {
@@ -82,6 +83,20 @@ export function OfficeSettingsPanel({ initialSettings }: { initialSettings: Sett
                 rows={3} placeholder="One number per line" className={field} />
             </label>
           </div>
+        </fieldset>
+        <fieldset className="rounded-lg border border-[var(--border)] p-4 sm:col-span-2">
+          <legend className="px-1 text-sm font-semibold text-ink-800">Ticket back note · ટિકિટ પાછળની નોંધ</legend>
+          <label className="block text-sm font-medium text-ink-700">
+            Instructions in Gujarati
+            <textarea value={settings.backInstructions}
+              onChange={(e) => update("backInstructions", e.target.value)}
+              rows={5} maxLength={3000}
+              placeholder={"દા.ત. મુસાફરીના ૧૫ મિનિટ પહેલાં હાજર રહો.\nટિકિટ અને ઓળખપત્ર સાથે રાખો."}
+              className={field} />
+            <span className="mt-1 block text-xs font-normal text-ink-500">
+              These notes print on a separate backside pass, one copy for each ticket.
+            </span>
+          </label>
         </fieldset>
       </div>
       <button type="button" onClick={save} disabled={pending}

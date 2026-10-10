@@ -137,6 +137,7 @@ export default async function TicketPage({
 
       <PrintSheet count={1} defaultFormat="a5"
         downloadFileName={ticketFileName(ticket.customerName, ticket.serviceDate)}
+        backInstructions={office.backInstructions}
         subtitle={`${ticket.pnr} · ${ticket.customerName} · seat ${seatNumbers}${extraPersonCount > 0 ? ` + ${extraPersonCount} extra` : ""}`}>
         <Ticket ticket={ticket} office={office} />
       </PrintSheet>

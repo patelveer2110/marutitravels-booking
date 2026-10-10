@@ -13,6 +13,7 @@ const officeSchema = z.object({
   altPhone: z.string().trim().max(100),
   thirdAddress: z.string().trim().max(500),
   thirdPhone: z.string().trim().max(100),
+  backInstructions: z.string().trim().max(3000),
 });
 
 export async function saveOfficeSettingsAction(raw: unknown) {

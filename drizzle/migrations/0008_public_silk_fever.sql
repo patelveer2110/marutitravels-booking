@@ -1,0 +1,1 @@
+ALTER TABLE "office_setting" ADD COLUMN "back_instructions" text;

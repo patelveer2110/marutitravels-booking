@@ -90,13 +90,100 @@ html, body {
   break-inside: avoid;
   page-break-inside: avoid;
 }
+.back-ticket {
+  position: relative;
+  display: grid !important;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: stretch;
+  padding: 0 !important;
+}
+.back-instruction-content {
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  min-width: 0;
+  padding: 5mm;
+  overflow-wrap: anywhere;
+  white-space: pre-line;
+  font-size: 12pt;
+  line-height: 1.5;
+}
+.back-instruction-heading {
+  margin-bottom: 2mm;
+  font-size: 1.15em;
+}
+.back-ticket-number { display: none; }
+.back-note-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  gap: 3mm;
+}
+.ticket-print-page {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  width: 100%;
+  gap: 3mm;
+}
+.print-sheet[data-print-format="a4-3cut"] .back-note-page,
+.print-sheet[data-print-format="a4-3cutmemo"] .back-note-page {
+  gap: 0;
+}
+.back-memo-blank {
+  grid-row: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-right: 1px dashed #334155;
+  color: #94a3b8;
+  font-size: 9pt;
+}
+.print-sheet[data-print-side="back"] .ticket.back-ticket-with-memo {
+  grid-template-columns: minmax(0, 1fr) minmax(0, 2fr);
+}
+.print-sheet[data-print-side="back"] .ticket.back-ticket-with-memo .back-instruction-content {
+  grid-column: 2;
+  border-left: 1px dashed #334155;
+}
+.print-sheet[data-print-side="back"] .ticket.back-ticket-with-memo .back-memo-blank {
+  grid-column: 1;
+  border-right: 1px dashed #334155;
+}
+
+/* Flipping portrait paper over its short edge keeps the ticket panel left. */
+.print-sheet[data-print-side="back"][data-flip-edge="short"]:not([data-print-format="a5-memo"]) .back-ticket-with-memo,
+.print-sheet[data-print-side="back"][data-print-format="a5-memo"][data-flip-edge="long"] .back-ticket-with-memo {
+  grid-template-columns: minmax(0, 2fr) minmax(0, 1fr);
+}
+.print-sheet[data-print-side="back"][data-flip-edge="short"]:not([data-print-format="a5-memo"]) .back-ticket-with-memo .back-instruction-content,
+.print-sheet[data-print-side="back"][data-print-format="a5-memo"][data-flip-edge="long"] .back-ticket-with-memo .back-instruction-content {
+  grid-column: 1;
+  border-right: 1px dashed #334155;
+  border-left: 0;
+}
+.print-sheet[data-print-side="back"][data-flip-edge="short"]:not([data-print-format="a5-memo"]) .back-ticket-with-memo .back-memo-blank,
+.print-sheet[data-print-side="back"][data-print-format="a5-memo"][data-flip-edge="long"] .back-ticket-with-memo .back-memo-blank {
+  grid-column: 2;
+  border-right: 0;
+  border-left: 1px dashed #334155;
+}
+
+/* Short-edge portrait and long-edge landscape flips turn the text upside down. */
+.print-sheet[data-print-side="back"][data-flip-edge="short"]:not([data-print-format="a5-memo"]) .back-ticket-with-memo .back-instruction-content,
+.print-sheet[data-print-side="back"][data-print-format="a5-memo"][data-flip-edge="long"] .back-ticket-with-memo .back-instruction-content {
+  transform: rotate(180deg);
+}
 
 /* the dense formats lay out as a grid on screen too, so the preview
    matches the sheet that comes out of the printer */
 .print-sheet[data-print-format="a4-8up"] {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
+  display: flex;
+  flex-direction: column;
   max-width: 194mm;
+}
+.print-sheet[data-print-format="a4-8up"] .ticket-print-page,
+.print-sheet[data-print-format="a4-8up"] .back-note-page {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 .print-sheet[data-print-format="a4-8up"] .ticket { min-height: 68mm; }
 .print-sheet[data-print-format="a4-4up"] .ticket { min-height: 68mm; }
@@ -104,9 +191,42 @@ html, body {
 .print-sheet[data-print-format="a4-3cut"],
 .print-sheet[data-print-format="a4-3upmemo"],
 .print-sheet[data-print-format="a4-3cutmemo"] {
-  display: grid;
-  grid-template-columns: minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   max-width: 204mm;
+}
+.print-sheet[data-print-format="a4-3cut"] .ticket-print-page,
+.print-sheet[data-print-format="a4-3cut"] .back-note-page,
+.print-sheet[data-print-format="a4-3cutmemo"] .ticket-print-page,
+.print-sheet[data-print-format="a4-3cutmemo"] .back-note-page {
+  width: 210mm;
+  height: 99mm;
+  padding: 3mm;
+}
+.print-sheet[data-print-format="a4-3cut"],
+.print-sheet[data-print-format="a4-3cutmemo"] {
+  max-width: 210mm;
+}
+.print-sheet[data-print-format="a4-4up"] .ticket-print-page,
+.print-sheet[data-print-format="a4-3up"] .ticket-print-page,
+.print-sheet[data-print-format="a4-3cut"] .ticket-print-page,
+.print-sheet[data-print-format="a4-3upmemo"] .ticket-print-page,
+.print-sheet[data-print-format="a4-3cutmemo"] .ticket-print-page,
+.print-sheet[data-print-format="a4-4up"] .back-note-page,
+.print-sheet[data-print-format="a4-3up"] .back-note-page,
+.print-sheet[data-print-format="a4-3cut"] .back-note-page,
+.print-sheet[data-print-format="a4-3upmemo"] .back-note-page,
+.print-sheet[data-print-format="a4-3cutmemo"] .back-note-page {
+  grid-template-columns: minmax(0, 1fr);
+}
+.print-sheet[data-print-format="a5-memo"] {
+  display: flex;
+  flex-direction: column;
+  max-width: 204mm;
+}
+.print-sheet[data-print-format="a5-memo"] .ticket-print-page,
+.print-sheet[data-print-format="a5-memo"] .back-note-page {
+  grid-template-columns: minmax(0, 1fr);
 }
 .print-sheet[data-print-format="a4-3up"] .ticket { min-height: 95mm; }
 .print-sheet[data-print-format="a4-3cut"] .ticket { min-height: 97mm; }
@@ -271,6 +391,17 @@ html, body {
   .no-print, nav, aside { display: none !important; }
 
   html, body { background: #fff !important; margin: 0; padding: 0; }
+  main {
+    width: 100% !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
+  main > div {
+    width: 100% !important;
+    max-width: none !important;
+    margin: 0 !important;
+    padding: 0 !important;
+  }
 
   .print-sheet {
     margin: 0;
@@ -280,14 +411,131 @@ html, body {
     max-width: none !important;
     width: 100%;
   }
+  .print-sheet[data-print-format="a4-8up"],
+  .print-sheet[data-print-format="a4-4up"],
+  .print-sheet[data-print-format="a4-3up"],
+  .print-sheet[data-print-format="a4-3cut"],
+  .print-sheet[data-print-format="a4-3upmemo"],
+  .print-sheet[data-print-format="a4-3cutmemo"] {
+    display: block !important;
+    page: a4-ticket-sheet;
+    gap: 0 !important;
+  }
+  .print-sheet[data-print-format="a5"] {
+    display: block !important;
+    page: a5-ticket-sheet;
+    gap: 0 !important;
+  }
+  .print-sheet[data-print-side="back"][data-print-format="a4-8up"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-4up"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-3up"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cut"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-3upmemo"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cutmemo"],
+  .print-sheet[data-print-side="back"][data-print-format="a5"],
+  .print-sheet[data-print-side="back"][data-print-format="a5-memo"] {
+    display: block !important;
+    gap: 0 !important;
+  }
   .print-sheet[data-print-format="a4-3up"],
   .print-sheet[data-print-format="a4-3cut"],
   .print-sheet[data-print-format="a4-3upmemo"],
   .print-sheet[data-print-format="a4-3cutmemo"] {
     page: a4-three-up;
   }
+  .print-sheet[data-print-format="a4-3cut"],
+  .print-sheet[data-print-format="a4-3cutmemo"] {
+    page: a4-cut-sheet;
+  }
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cut"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cutmemo"] {
+    page: a4-cut-sheet;
+  }
   .print-sheet[data-print-format="a5-memo"] {
     page: a5-office-memo;
+  }
+  .print-sheet[data-print-format="a5-memo"] {
+    display: block !important;
+    gap: 0 !important;
+  }
+
+  .ticket-print-page,
+  .back-note-page {
+    display: grid;
+    box-sizing: border-box;
+    width: 210mm;
+    height: 297mm;
+    margin: 0 auto;
+    padding: 3mm;
+    align-content: start;
+    break-after: page;
+    page-break-after: always;
+  }
+  .ticket-print-page:last-child,
+  .back-note-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .print-sheet[data-print-format="a4-3cut"] .ticket-print-page,
+  .print-sheet[data-print-format="a4-3cutmemo"] .ticket-print-page,
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cut"] .back-note-page,
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cutmemo"] .back-note-page {
+    width: 210mm;
+    height: 99mm;
+  }
+  .print-sheet[data-print-format="a4-8up"] .ticket-print-page,
+  .print-sheet[data-print-format="a4-8up"] .back-note-page {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    gap: 3mm;
+  }
+  .print-sheet[data-print-format="a4-4up"] .ticket-print-page,
+  .print-sheet[data-print-format="a4-4up"] .back-note-page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(4, minmax(0, 1fr));
+    gap: 3mm;
+  }
+  .print-sheet[data-print-format="a4-3up"] .ticket-print-page,
+  .print-sheet[data-print-format="a4-3up"] .back-note-page,
+  .print-sheet[data-print-format="a4-3upmemo"] .ticket-print-page,
+  .print-sheet[data-print-format="a4-3upmemo"] .back-note-page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: repeat(3, 95mm);
+    gap: 3mm;
+  }
+  .print-sheet[data-print-format="a4-3cut"] .ticket-print-page,
+  .print-sheet[data-print-format="a4-3cut"] .back-note-page,
+  .print-sheet[data-print-format="a4-3cutmemo"] .ticket-print-page,
+  .print-sheet[data-print-format="a4-3cutmemo"] .back-note-page {
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
+  }
+  .print-sheet[data-print-format="a5"] .ticket-print-page,
+  .print-sheet[data-print-format="a5"] .back-note-page {
+    width: 148mm;
+    height: 210mm;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
+  }
+  .print-sheet[data-print-format="a5-memo"] .ticket-print-page,
+  .print-sheet[data-print-format="a5-memo"] .back-note-page {
+    width: 210mm;
+    height: 148mm;
+    grid-template-columns: minmax(0, 1fr);
+    grid-template-rows: minmax(0, 1fr);
+    gap: 0;
+  }
+  .print-sheet .ticket-print-page > .ticket,
+  .print-sheet .back-note-page > .ticket {
+    box-sizing: border-box !important;
+    width: 100% !important;
+    height: 100% !important;
+    min-height: 0 !important;
+    max-width: none !important;
+    break-after: auto !important;
+    page-break-after: auto !important;
   }
 
   .ticket {
@@ -394,11 +642,74 @@ html, body {
     grid-auto-rows: 97mm;
     row-gap: 0 !important;
   }
+  .print-sheet[data-print-side="back"][data-print-format="a4-3up"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cut"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-3upmemo"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cutmemo"] {
+    display: block;
+    page: a4-three-up-back;
+    gap: 0 !important;
+  }
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cut"],
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cutmemo"] {
+    page: a4-cut-sheet;
+  }
+  .print-sheet[data-print-side="back"] .back-note-page {
+    box-sizing: border-box;
+    width: 210mm;
+    height: 297mm;
+    margin: 0 auto;
+    padding: 3mm;
+    grid-template-columns: minmax(0, 1fr);
+    align-content: start;
+    break-after: page;
+    page-break-after: always;
+  }
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cut"] .back-note-page,
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cutmemo"] .back-note-page {
+    width: 210mm;
+    height: 99mm;
+  }
+  .print-sheet[data-print-side="back"] .back-note-page:last-child {
+    break-after: auto;
+    page-break-after: auto;
+  }
+  .print-sheet[data-print-side="back"][data-print-format="a5"] .back-note-page {
+    width: 148mm;
+    height: 210mm;
+  }
+  .print-sheet[data-print-side="back"][data-print-format="a5-memo"] .back-note-page {
+    width: 210mm;
+    height: 148mm;
+  }
+  .print-sheet[data-print-side="back"][data-print-format="a4-3up"] .back-note-page,
+  .print-sheet[data-print-side="back"][data-print-format="a4-3upmemo"] .back-note-page {
+    row-gap: 3mm;
+  }
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cut"] .back-note-page,
+  .print-sheet[data-print-side="back"][data-print-format="a4-3cutmemo"] .back-note-page {
+    row-gap: 0;
+  }
   .print-sheet[data-print-format="a4-3cutmemo"] .ticket {
     height: 97mm;
     min-height: 0;
     overflow: hidden;
     border: 1px dashed #475569 !important;
+  }
+  .print-sheet[data-print-format="a4-3cutmemo"] .ticket:not(:first-child) {
+    border-top: 0 !important;
+  }
+  .print-sheet[data-print-format="a4-3cutmemo"] .ticket:not(:last-child)::after {
+    content: "અહીંથી કાપો";
+    position: absolute;
+    right: 2mm;
+    bottom: 1mm;
+    padding: 0 .6em;
+    background: #fff;
+    color: #000;
+    font-size: 7pt;
+    font-weight: 700;
+    letter-spacing: .08em;
   }
   .print-sheet[data-print-format="a4-3cutmemo"] .ticket:nth-child(3n) {
     break-after: page;
@@ -471,6 +782,23 @@ html, body {
     border-top: 0;
     border-left: 1px dashed #334155;
   }
+  .back-instruction-content {
+    padding: 5mm;
+    font-size: 12pt;
+    line-height: 1.5;
+  }
+  .print-sheet[data-print-format="a4-8up"] .back-instruction-content { padding: 2mm; font-size: 8pt; }
+  .print-sheet[data-print-format="a4-4up"] .back-instruction-content { padding: 3mm; font-size: 10pt; }
+  .print-sheet[data-print-format="a4-3up"] .back-instruction-content,
+  .print-sheet[data-print-format="a4-3upmemo"] .back-instruction-content { padding: 5mm; font-size: 12pt; }
+  .print-sheet[data-print-format="a4-3cut"] .back-instruction-content,
+  .print-sheet[data-print-format="a4-3cutmemo"] .back-instruction-content { padding: 4mm; font-size: 11pt; }
+  .print-sheet[data-print-format="a5-memo"] .back-instruction-content { padding: 5mm; font-size: 12pt; }
+  .back-memo-blank { color: transparent; }
+  .back-memo-blank .no-print { display: none !important; }
+  .back-ticket-with-memo .back-instruction-content {
+    border-color: #000 !important;
+  }
   .print-sheet[data-print-format="a5-memo"] .office-memo-head { font-size: 10pt; }
   .print-sheet[data-print-format="a5-memo"] .office-memo-grid {
     row-gap: 1.5mm;
@@ -538,9 +866,13 @@ html, body {
   }
 }
 
-@page { size: A4 portrait; margin: 8mm; }
-@page a4-three-up { size: A4 portrait; margin: 3mm; }
-@page a5-office-memo { size: A5 landscape; margin: 5mm; }
+@page { size: A4 portrait; margin: 3mm; }
+@page a4-ticket-sheet { size: A4 portrait; margin: 0; }
+@page a4-three-up { size: A4 portrait; margin: 0; }
+@page a4-three-up-back { size: A4 portrait; margin: 0; }
+@page a4-cut-sheet { size: 210mm 99mm; margin: 0; }
+@page a5-ticket-sheet { size: A5 portrait; margin: 0; }
+@page a5-office-memo { size: A5 landscape; margin: 0; }
 
 /* ─────────────────── the ticket itself ───────────────────
    Sizing lives here rather than in the component so switching paper format
@@ -776,7 +1108,7 @@ html, body {
   padding-top: .5em;
   padding-bottom: .5em;
 }
-.print-sheet[data-print-format="a4-3memo"] .ticket {
+.print-sheet[data-print-format="a4-3cutmemo"] .ticket {
   --fs: 8px; --fs-lg: 9px; --fs-sm: 7px; --fs-xs: 6px;
   padding: 2mm 2.5mm;
   line-height: 1.08;

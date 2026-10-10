@@ -13,6 +13,7 @@ export interface OfficeDetails {
   altAddress: string | null;
   thirdPhone: string | null;
   thirdAddress: string | null;
+  backInstructions: string;
   email: string | null;
   gstin: string | null;
   /** short clauses, printed as one line on a compact ticket */
@@ -33,6 +34,7 @@ export async function getOfficeDetails(): Promise<OfficeDetails> {
     altAddress: setting?.altAddress ?? null,
     thirdPhone: setting?.thirdPhone ?? null,
     thirdAddress: setting?.thirdAddress ?? null,
+    backInstructions: setting?.backInstructions ?? "",
     email: process.env.OFFICE_EMAIL || null,
     gstin: process.env.OFFICE_GSTIN || null,
     terms: (process.env.OFFICE_TERMS ||

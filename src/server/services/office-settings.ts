@@ -9,6 +9,7 @@ export interface OfficeSettingValues {
   altPhone: string;
   thirdAddress: string;
   thirdPhone: string;
+  backInstructions: string;
 }
 
 export async function getOfficeSetting(): Promise<OfficeSettingValues> {
@@ -20,6 +21,7 @@ export async function getOfficeSetting(): Promise<OfficeSettingValues> {
     altPhone: row?.altPhone ?? "",
     thirdAddress: row?.thirdAddress ?? "",
     thirdPhone: row?.thirdPhone ?? "",
+    backInstructions: row?.backInstructions ?? "",
   };
 }
 
@@ -32,6 +34,7 @@ export async function saveOfficeSetting(values: OfficeSettingValues, agentId: st
     altPhone: values.altPhone || null,
     thirdAddress: values.thirdAddress || null,
     thirdPhone: values.thirdPhone || null,
+    backInstructions: values.backInstructions || null,
     updatedBy: agentId,
     updatedAt: new Date(),
   }).onConflictDoUpdate({
@@ -43,6 +46,7 @@ export async function saveOfficeSetting(values: OfficeSettingValues, agentId: st
       altPhone: values.altPhone || null,
       thirdAddress: values.thirdAddress || null,
       thirdPhone: values.thirdPhone || null,
+      backInstructions: values.backInstructions || null,
       updatedBy: agentId,
       updatedAt: new Date(),
     },
