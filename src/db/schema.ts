@@ -78,6 +78,8 @@ export const officeSetting = pgTable("office_setting", {
   phone: text("phone"),
   altAddress: text("alt_address"),
   altPhone: text("alt_phone"),
+  thirdAddress: text("third_address"),
+  thirdPhone: text("third_phone"),
   updatedBy: uuid("updated_by").references(() => agent.id),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
 });

@@ -8,6 +8,8 @@ type Settings = {
   phone: string;
   altAddress: string;
   altPhone: string;
+  thirdAddress: string;
+  thirdPhone: string;
 };
 
 export function OfficeSettingsPanel({ initialSettings }: { initialSettings: Settings }) {
@@ -34,7 +36,7 @@ export function OfficeSettingsPanel({ initialSettings }: { initialSettings: Sett
   return (
     <section className="max-w-3xl rounded-xl border border-[var(--border)] bg-[var(--surface)] p-5">
       <p className="text-xs leading-5 text-ink-500">
-        Environment variables are no longer used for these four ticket fields.
+        Environment variables are no longer used for these office contact details.
         Leave a field blank if that office does not have a second contact detail.
       </p>
       <div className="mt-5 grid gap-5 sm:grid-cols-2">
@@ -63,6 +65,23 @@ export function OfficeSettingsPanel({ initialSettings }: { initialSettings: Sett
             <textarea value={settings.altPhone} onChange={(e) => update("altPhone", e.target.value)}
               rows={3} placeholder="One number per line" className={field} />
           </label>
+        </fieldset>
+        <fieldset className="rounded-lg border border-[var(--border)] p-4 sm:col-span-2">
+          <legend className="px-1 text-sm font-semibold text-ink-800">Office 3</legend>
+          <div className="grid gap-3 sm:grid-cols-2">
+            <label className="block text-sm font-medium text-ink-700">
+              Address
+              <textarea value={settings.thirdAddress}
+                onChange={(e) => update("thirdAddress", e.target.value)}
+                rows={3} className={field} />
+            </label>
+            <label className="block text-sm font-medium text-ink-700">
+              Phone numbers
+              <textarea value={settings.thirdPhone}
+                onChange={(e) => update("thirdPhone", e.target.value)}
+                rows={3} placeholder="One number per line" className={field} />
+            </label>
+          </div>
         </fieldset>
       </div>
       <button type="button" onClick={save} disabled={pending}

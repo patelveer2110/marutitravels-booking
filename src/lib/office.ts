@@ -1,7 +1,7 @@
 /**
  * Operator identity printed on every ticket.
  *
- * The two office addresses and phone numbers are stored in the admin panel so
+ * The office addresses and phone numbers are stored in the admin panel so
  * ticket corrections do not require an environment change or redeployment.
  */
 export interface OfficeDetails {
@@ -11,6 +11,8 @@ export interface OfficeDetails {
   altPhone: string | null;
   address: string | null;
   altAddress: string | null;
+  thirdPhone: string | null;
+  thirdAddress: string | null;
   email: string | null;
   gstin: string | null;
   /** short clauses, printed as one line on a compact ticket */
@@ -29,6 +31,8 @@ export async function getOfficeDetails(): Promise<OfficeDetails> {
     altPhone: setting?.altPhone ?? null,
     address: setting?.address ?? null,
     altAddress: setting?.altAddress ?? null,
+    thirdPhone: setting?.thirdPhone ?? null,
+    thirdAddress: setting?.thirdAddress ?? null,
     email: process.env.OFFICE_EMAIL || null,
     gstin: process.env.OFFICE_GSTIN || null,
     terms: (process.env.OFFICE_TERMS ||
@@ -38,5 +42,5 @@ export async function getOfficeDetails(): Promise<OfficeDetails> {
 }
 
 export function contactLine(o: OfficeDetails): string {
-  return [o.phone, o.altPhone].filter(Boolean).join(" / ");
+  return [o.phone, o.altPhone, o.thirdPhone].filter(Boolean).join(" / ");
 }

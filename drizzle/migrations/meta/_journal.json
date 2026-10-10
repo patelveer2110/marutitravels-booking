@@ -57,6 +57,13 @@
       "when": 1788673852658,
       "tag": "0006_unusual_rawhide_kid",
       "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1791636405575,
+      "tag": "0007_sturdy_mattie_franklin",
+      "breakpoints": true
     }
   ]
 }

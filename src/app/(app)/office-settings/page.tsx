@@ -15,7 +15,7 @@ export default async function OfficeSettingsPage() {
         <div>
           <h1 className="text-lg font-semibold text-ink-900">Office details</h1>
           <p className="text-sm text-ink-500">
-            These two addresses and all phone numbers appear on printed tickets.
+            All three office addresses and phone numbers appear on printed tickets.
           </p>
         </div>
       </header>

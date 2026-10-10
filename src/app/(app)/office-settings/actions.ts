@@ -11,6 +11,8 @@ const officeSchema = z.object({
   phone: z.string().trim().max(100),
   altAddress: z.string().trim().max(500),
   altPhone: z.string().trim().max(100),
+  thirdAddress: z.string().trim().max(500),
+  thirdPhone: z.string().trim().max(100),
 });
 
 export async function saveOfficeSettingsAction(raw: unknown) {
