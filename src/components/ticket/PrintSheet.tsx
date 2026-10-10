@@ -1,7 +1,7 @@
 "use client";
 
 import { useState } from "react";
-import { Printer, Grid2x2, Rows3, FileText, Receipt } from "lucide-react";
+import { Download, Printer, Grid2x2, Rows3, FileText, Receipt } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export type PrintFormat = "a4-8up" | "a4-4up" | "a5" | "thermal";
@@ -39,12 +39,14 @@ const PER_PAGE: Record<PrintFormat, number> = {
  */
 export function PrintSheet({
   children, count, subtitle, defaultFormat = "a4-8up", onFormatChange,
+  downloadFileName,
 }: {
   children: React.ReactNode;
   count: number;
   subtitle: string;
   defaultFormat?: PrintFormat;
   onFormatChange?: (f: PrintFormat) => void;
+  downloadFileName?: string;
 }) {
   const [format, setFormat] = useState<PrintFormat>(defaultFormat);
   const sheets = Math.ceil(count / PER_PAGE[format]);
@@ -84,12 +86,20 @@ export function PrintSheet({
         </fieldset>
 
         <button type="button" onClick={() => window.print()}
+          title={downloadFileName
+            ? `Choose Save as PDF to download ${downloadFileName}.pdf`
+            : undefined}
           className="inline-flex items-center gap-1.5 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white transition hover:bg-brand-700">
-          <Printer size={15} /> Print
+          {downloadFileName
+            ? <><Download size={15} /> Download ticket</>
+            : <><Printer size={15} /> Print</>}
         </button>
       </div>
 
       <p className="no-print mb-3 text-xs text-ink-500">
+        {downloadFileName && (
+          <>Choose “Save as PDF” in the print dialog. Suggested filename: {downloadFileName}.pdf. </>
+        )}
         {FORMATS.find((f) => f.id === format)?.hint}{" "}
         {format.startsWith("a4")
           ? "Set the printer to A4 portrait with default margins, and turn off any “fit to page” scaling."

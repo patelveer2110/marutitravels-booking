@@ -2,7 +2,9 @@
 
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
-import { Loader2, Save, Plus, Trash2, AlertTriangle, MapPin } from "lucide-react";
+import {
+  Loader2, Save, Plus, Trash2, AlertTriangle, MapPin, GripVertical,
+} from "lucide-react";
 import { saveRouteAction } from "./actions";
 import { cn } from "@/lib/utils";
 
@@ -41,15 +43,41 @@ export function RouteForm({ initial }: { initial?: RouteFormInitial }) {
   const [duration, setDuration] = useState(initial?.defaultDurationMin ?? "");
   const [isActive, setIsActive] = useState(initial?.isActive ?? true);
   const [points, setPoints] = useState<PointDraft[]>(initial?.points ?? []);
+  const [draggingPointKey, setDraggingPointKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
 
   const addPoint = (kind: "BOARDING" | "DROPPING") =>
     setPoints((ps) => [...ps, {
       key: newKey(), name: "", address: "", kind,
-      sequence: ps.filter((p) => p.kind === kind).length,
+      sequence: Math.max(-1, ...ps.filter((p) => p.kind === kind).map((p) => p.sequence)) + 1,
       offsetMinutes: 0,
     }]);
+
+  const removePoint = (kind: "BOARDING" | "DROPPING", key: string) =>
+    setPoints((current) => {
+      const remaining = current.filter((p) => !(p.kind === kind && p.key === key));
+      const ordered = remaining.filter((p) => p.kind === kind)
+        .sort((a, b) => a.sequence - b.sequence);
+      const sequenceByKey = new Map(ordered.map((p, sequence) => [p.key, sequence]));
+      return remaining.map((p) => sequenceByKey.has(p.key)
+        ? { ...p, sequence: sequenceByKey.get(p.key) ?? p.sequence }
+        : p);
+    });
+
+  const movePoint = (kind: "BOARDING" | "DROPPING", key: string, targetIndex: number) =>
+    setPoints((current) => {
+      const ordered = current.filter((p) => p.kind === kind)
+        .sort((a, b) => a.sequence - b.sequence);
+      const index = ordered.findIndex((p) => p.key === key);
+      if (index < 0 || targetIndex < 0 || targetIndex >= ordered.length) return current;
+      const [point] = ordered.splice(index, 1);
+      ordered.splice(targetIndex, 0, point);
+      const sequenceByKey = new Map(ordered.map((p, sequence) => [p.key, sequence]));
+      return current.map((p) => sequenceByKey.has(p.key)
+        ? { ...p, sequence: sequenceByKey.get(p.key) ?? p.sequence }
+        : p);
+    });
 
   const patch = (key: string, p: Partial<PointDraft>) =>
     setPoints((ps) => ps.map((x) => (x.key === key ? { ...x, ...p } : x)));
@@ -62,13 +90,15 @@ export function RouteForm({ initial }: { initial?: RouteFormInitial }) {
         distanceKm: distanceKm ? Number(distanceKm) : null,
         defaultDurationMin: duration ? Number(duration) : null,
         isActive,
-        points: points
-          .filter((p) => p.name.trim())
-          .map((p) => ({
+        points: (["BOARDING", "DROPPING"] as const).flatMap((kind) =>
+          points.filter((p) => p.kind === kind)
+            .sort((a, b) => a.sequence - b.sequence)
+            .filter((p) => p.name.trim())
+            .map((p, sequence) => ({
             id: p.id, name: p.name, address: p.address,
-            kind: p.kind, sequence: p.sequence,
+            kind: p.kind, sequence,
             offsetMinutes: Number(p.offsetMinutes) || 0,
-          })),
+          }))),
       });
       if (!res.ok) {
         setError(res.error ?? "Could not save");
@@ -119,7 +149,8 @@ export function RouteForm({ initial }: { initial?: RouteFormInitial }) {
       </section>
 
       {(["BOARDING", "DROPPING"] as const).map((kind) => {
-        const list = points.filter((p) => p.kind === kind);
+        const list = points.filter((p) => p.kind === kind)
+          .sort((a, b) => a.sequence - b.sequence);
         return (
           <section key={kind}
             className="rounded-xl border border-[var(--border)] bg-[var(--surface)] p-4 sm:p-5">
@@ -133,6 +164,9 @@ export function RouteForm({ initial }: { initial?: RouteFormInitial }) {
                 <Plus size={13} /> Add
               </button>
             </div>
+            <p className="mb-3 text-xs text-ink-500">
+              Drag the grip to reorder stops. You can also use Move up or Move down.
+            </p>
 
             {list.length === 0 ? (
               <p className="rounded-lg border border-dashed border-[var(--border)] px-4 py-5 text-center text-xs text-ink-500">
@@ -140,30 +174,94 @@ export function RouteForm({ initial }: { initial?: RouteFormInitial }) {
                 still type one directly on a booking.
               </p>
             ) : (
-              <div className="flex flex-col gap-2">
-                {list.map((p) => (
-                  <div key={p.key}
-                    className="grid items-end gap-2 rounded-lg border border-[var(--border)] p-2 sm:grid-cols-[1fr_1.4fr_auto_auto] sm:border-0 sm:p-0">
-                    <Field label="Name">
-                      <input value={p.name} onChange={(e) => patch(p.key, { name: e.target.value })}
-                        placeholder="Bus stand" className={inputCls(false)} />
-                    </Field>
-                    <Field label="Address">
-                      <input value={p.address} onChange={(e) => patch(p.key, { address: e.target.value })}
-                        placeholder="Optional landmark" className={inputCls(false)} />
-                    </Field>
-                    <Field label="± min">
-                      <input value={p.offsetMinutes} inputMode="numeric"
-                        onChange={(e) => patch(p.key, { offsetMinutes: Number(e.target.value) || 0 })}
-                        className={cn(inputCls(false), "w-20")} />
-                    </Field>
-                    <button type="button"
-                      onClick={() => setPoints((ps) => ps.filter((x) => x.key !== p.key))}
-                      aria-label={`Remove ${p.name || "point"}`}
-                      className="mb-0.5 rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50">
-                      <Trash2 size={14} />
-                    </button>
-                  </div>
+              <div className="flex flex-col gap-2" role="list"
+                aria-label={`${kind === "BOARDING" ? "Pickup" : "Drop"} point order`}>
+                {list.map((p, index) => (
+                  <div key={p.key} role="listitem"
+                    onDragOver={(event) => {
+                      if (draggingPointKey) {
+                        event.preventDefault();
+                        event.dataTransfer.dropEffect = "move";
+                      }
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      const sourceKey = event.dataTransfer.getData("text/plain") || draggingPointKey;
+                      if (sourceKey && sourceKey !== p.key) {
+                        const sourceIndex = list.findIndex((item) => item.key === sourceKey);
+                        const targetIndex = list.findIndex((item) => item.key === p.key);
+                        const after = event.clientY >
+                          event.currentTarget.getBoundingClientRect().top +
+                          event.currentTarget.getBoundingClientRect().height / 2;
+                        let insertionIndex = targetIndex - (sourceIndex < targetIndex ? 1 : 0)
+                          + (after ? 1 : 0);
+                        insertionIndex = Math.max(0, Math.min(insertionIndex, list.length - 1));
+                        movePoint(kind, sourceKey, insertionIndex);
+                      }
+                      setDraggingPointKey(null);
+                    }}
+                    className={cn(
+                      "rounded-xl border border-[var(--border)] bg-[var(--surface)] p-2 transition sm:p-3",
+                      draggingPointKey === p.key && "opacity-45",
+                      draggingPointKey && draggingPointKey !== p.key &&
+                        "border-dashed border-brand-300",
+                    )}>
+                      <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
+                        <div className="flex items-center gap-2">
+                          <button type="button" draggable
+                            onDragStart={(event) => {
+                              event.dataTransfer.effectAllowed = "move";
+                              event.dataTransfer.setData("text/plain", p.key);
+                              setDraggingPointKey(p.key);
+                            }}
+                            onDragEnd={() => setDraggingPointKey(null)}
+                            aria-label={`Drag to reorder ${kind === "BOARDING" ? "pickup" : "drop"} point ${p.name || "point"}`}
+                            title="Drag to reorder"
+                            className="flex min-h-9 touch-none cursor-grab items-center gap-1 rounded-lg border border-[var(--border)] px-2 text-xs font-medium text-ink-600 hover:bg-ink-50 active:cursor-grabbing">
+                            <GripVertical size={16} />
+                            <span>Drag</span>
+                          </button>
+                          <span className="rounded-full bg-ink-100 px-2.5 py-1 text-xs font-semibold tabular-nums text-ink-700">
+                            Stop {index + 1}
+                          </span>
+                        </div>
+                        <div className="flex items-center gap-1.5">
+                          <button type="button"
+                            onClick={() => movePoint(kind, p.key, index - 1)}
+                            disabled={list[0]?.key === p.key}
+                            className="rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-50 disabled:opacity-40">
+                            ↑ Move up
+                          </button>
+                          <button type="button"
+                            onClick={() => movePoint(kind, p.key, index + 1)}
+                            disabled={list[list.length - 1]?.key === p.key}
+                            className="rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-50 disabled:opacity-40">
+                            ↓ Move down
+                          </button>
+                          <button type="button"
+                            onClick={() => removePoint(kind, p.key)}
+                            aria-label={`Remove ${p.name || "point"}`}
+                            className="rounded-lg border border-red-200 p-2 text-red-600 hover:bg-red-50">
+                            <Trash2 size={14} />
+                          </button>
+                        </div>
+                      </div>
+                      <div className="grid items-end gap-2 sm:grid-cols-[1fr_1.4fr_auto]">
+                        <Field label="Name">
+                          <input value={p.name} onChange={(e) => patch(p.key, { name: e.target.value })}
+                            placeholder="Bus stand" className={inputCls(false)} />
+                        </Field>
+                        <Field label="Address">
+                          <input value={p.address} onChange={(e) => patch(p.key, { address: e.target.value })}
+                            placeholder="Optional landmark" className={inputCls(false)} />
+                        </Field>
+                        <Field label="± min">
+                          <input value={p.offsetMinutes} inputMode="numeric"
+                            onChange={(e) => patch(p.key, { offsetMinutes: Number(e.target.value) || 0 })}
+                            className={cn(inputCls(false), "w-20")} />
+                        </Field>
+                      </div>
+                    </div>
                 ))}
               </div>
             )}

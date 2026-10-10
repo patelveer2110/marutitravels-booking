@@ -14,7 +14,7 @@
     "db:seed": "tsx scripts/seed.ts",
     "typecheck": "tsc --noEmit",
     "test:concurrency": "tsx tests/concurrency/run.ts",
-    "test:unit": "tsx tests/unit/seat-selection.ts && tsx tests/unit/errors.ts && tsx tests/unit/journey.ts",
+    "test:unit": "tsx tests/unit/seat-selection.ts && tsx tests/unit/errors.ts && tsx tests/unit/journey.ts && tsx tests/unit/booking-validation.ts && tsx tests/unit/excel-manifest.ts",
     "test": "pnpm test:unit && pnpm test:concurrency"
   },
   "dependencies": {
@@ -25,6 +25,7 @@
     "clsx": "^2.1.1",
     "date-fns": "^4.4.0",
     "drizzle-orm": "^0.45.2",
+    "exceljs": "^4.4.0",
     "jose": "^6.2.10",
     "lucide-react": "^1.38.0",
     "next": "16.3.4",

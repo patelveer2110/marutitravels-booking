@@ -1,8 +1,8 @@
 // Server-side only. Not marked `server-only` so scripts can render tickets.
-import { and, asc, eq, inArray, ne } from "drizzle-orm";
+import { and, asc, eq, inArray, ne, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  agent, booking, bookingSeat, bus, route, seat, trip,
+  agent, boardingPoint, booking, bookingSeat, bus, route, seat, trip,
 } from "@/db/schema";
 
 export interface TicketSeat {
@@ -40,6 +40,8 @@ export interface TicketData {
 
   boardingName: string | null;
   droppingName: string | null;
+  pickupSequence: number | null;
+  dropSequence: number | null;
 
   seats: TicketSeat[];
   amountTotalPaise: number;
@@ -70,6 +72,12 @@ const BASE_COLUMNS = {
   registrationNo: bus.registrationNo,
   boardingName: booking.boardingName,
   droppingName: booking.droppingName,
+  pickupSequence: sql<number | null>`(
+    select bp.sequence from ${boardingPoint} bp where bp.id = ${booking.boardingPointId}
+  )`,
+  dropSequence: sql<number | null>`(
+    select bp.sequence from ${boardingPoint} bp where bp.id = ${booking.droppingPointId}
+  )`,
   amountTotalPaise: booking.amountTotalPaise,
   amountPaidPaise: booking.amountPaidPaise,
   paymentType: booking.paymentType,
@@ -160,7 +168,7 @@ export async function getTicketsByIds(ids: string[]): Promise<TicketData[]> {
  * printer in the same order as the passenger chart.
  */
 export async function getTicketsForTrip(
-  tripId: string, opts: { includeCancelled?: boolean } = {},
+  tripId: string, opts: { includeCancelled?: boolean; orderByPickup?: boolean } = {},
 ): Promise<TicketData[]> {
   const where = opts.includeCancelled
     ? eq(booking.tripId, tripId)
@@ -169,13 +177,28 @@ export async function getTicketsForTrip(
   const rows = await baseQuery().where(where);
   const tickets = await withSeats(rows);
 
-  return tickets.sort((a, b) => {
-    const deckRank = (d: string) => (d === "CABIN" ? 0 : d === "LOWER" ? 1 : 2);
-    const sa = a.seats[0], sb = b.seats[0];
-    if (!sa || !sb) return 0;
-    return deckRank(sa.deck) - deckRank(sb.deck)
-      || sa.seatNumber.localeCompare(sb.seatNumber, undefined, { numeric: true });
-  });
+  if (opts.orderByPickup) {
+    return tickets.sort((a, b) => {
+      const aSeq = a.pickupSequence;
+      const bSeq = b.pickupSequence;
+      if (aSeq === null && bSeq !== null) return 1;
+      if (bSeq === null && aSeq !== null) return -1;
+      const pickupOrder = aSeq === null || bSeq === null ? 0
+        : a.direction === "RETURN" ? bSeq - aSeq : aSeq - bSeq;
+      if (pickupOrder !== 0) return pickupOrder;
+      return compareSeatOrder(a, b);
+    });
+  }
+
+  return tickets.sort(compareSeatOrder);
+}
+
+function compareSeatOrder(a: TicketData, b: TicketData): number {
+  const deckRank = (d: string) => (d === "CABIN" ? 0 : d === "LOWER" ? 1 : 2);
+  const sa = a.seats[0], sb = b.seats[0];
+  if (!sa || !sb) return 0;
+  return deckRank(sa.deck) - deckRank(sb.deck)
+    || sa.seatNumber.localeCompare(sb.seatNumber, undefined, { numeric: true });
 }
 
 export interface TripHeaderInfo {

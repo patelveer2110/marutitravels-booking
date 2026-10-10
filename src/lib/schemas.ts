@@ -29,7 +29,11 @@ export const draftLayoutSchema = z.object({
 /** Rupees in the form, paise in the database. Never a float in between. */
 const rupeeField = z.union([z.string(), z.number()])
   .transform((v) => {
-    const n = typeof v === "string" ? Number(v.replace(/[^\d.-]/g, "") || 0) : v;
+    const raw = typeof v === "string" ? v.trim().replace(/[₹,\s]/g, "") : v;
+    const formatted = typeof raw === "number"
+      ? /^\d+(\.\d{1,2})?$/.test(String(raw))
+      : /^\d+(\.\d{1,2})?$/.test(raw);
+    const n = formatted ? Number(raw) : NaN;
     return Number.isFinite(n) ? Math.round(n * 100) : NaN;
   })
   .refine((n) => Number.isFinite(n) && n >= 0, "Enter a valid amount")
@@ -112,29 +116,48 @@ export const generateTripsSchema = z.object({
   fromDate: isoDate,
   toDate: isoDate,
   templateIds: z.array(z.string().uuid()).optional(),
+  daysOfWeek: z.array(z.number().int().min(0).max(6)).min(1).max(7).optional(),
+  overwriteExisting: z.boolean().default(false),
 }).refine((v) => v.fromDate <= v.toDate, {
   message: "The end date must not be before the start date", path: ["toDate"],
+});
+
+export const editTripSchema = z.object({
+  tripId: z.string().uuid(),
+  routeId: z.string().uuid("Choose a route"),
+  direction: z.enum(["ONWARD", "RETURN"]),
+  serviceDate: isoDate,
+  departureTime: timeHHMM,
+  arrivalTime: timeHHMM,
 });
 
 /* ────────────────────────── booking ────────────────────────── */
 
 export const paymentTypeSchema = z.enum(["CASH", "ONLINE", "PENDING"]);
 
+const phoneNumber = z.string().regex(/^[6-9]\d{9}$/,
+  "Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9");
+
 export const holdSeatsSchema = z.object({
   tripId: z.string().uuid(),
-  seatIds: z.array(z.string().uuid()).min(1, "Select at least one seat"),
+  seatIds: z.array(z.string().uuid()).min(1, "Select at least one seat")
+    .max(100, "Select no more than 100 seats"),
   /** optional hint so a parked reservation is recognisable in the tray */
   provisionalName: z.string().trim().max(120).optional().or(z.literal("")),
-  provisionalPhone: z.string().trim().max(20).optional().or(z.literal("")),
+  provisionalPhone: phoneNumber.optional().or(z.literal("")),
+});
+
+export const updateHoldSeatsSchema = z.object({
+  holdId: z.string().uuid(),
+  seatIds: z.array(z.string().uuid()).min(1, "Keep at least one seat reserved")
+    .max(100, "Select no more than 100 seats"),
 });
 
 export const confirmBookingSchema = z.object({
   holdId: z.string().uuid(),
   customerName: z.string().trim().min(1, "Enter the customer's name").max(120),
-  customerPhone: z.string().trim()
-    .min(6, "Enter a valid phone number").max(20)
-    .regex(/^[\d+\-() ]+$/, "Phone number can only contain digits and + - ( )"),
-  altPhone: z.string().trim().max(20).optional().or(z.literal("")),
+  customerPhone: phoneNumber,
+  altPhone: phoneNumber.optional().or(z.literal("")),
   boardingPointId: z.string().uuid().nullable().optional(),
   boardingName: z.string().trim().max(160).optional().or(z.literal("")),
   droppingPointId: z.string().uuid().nullable().optional(),
@@ -150,16 +173,15 @@ export const confirmBookingSchema = z.object({
     fare: rupeeField,
     extraPersonCount: z.number().int().min(0).max(20).default(0),
     extraPersonCharge: rupeeField.optional(),
-  })).min(1),
+  })).min(1).max(100),
 });
 
 export const editBookingSchema = z.object({
   bookingId: z.string().uuid(),
   tripId: z.string().uuid(),
   customerName: z.string().trim().min(1, "Enter the customer's name").max(120),
-  customerPhone: z.string().trim().min(6, "Enter a valid phone number").max(20)
-    .regex(/^[\d+\-() ]+$/, "Phone number can only contain digits and + - ( )"),
-  altPhone: z.string().trim().max(20).optional().or(z.literal("")),
+  customerPhone: phoneNumber,
+  altPhone: phoneNumber.optional().or(z.literal("")),
   boardingName: z.string().trim().max(160).optional().or(z.literal("")),
   droppingName: z.string().trim().max(160).optional().or(z.literal("")),
   paymentType: paymentTypeSchema,

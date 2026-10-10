@@ -3,9 +3,9 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requireSession } from "@/server/auth";
-import { confirmBookingSchema, holdSeatsSchema } from "@/lib/schemas";
+import { confirmBookingSchema, holdSeatsSchema, updateHoldSeatsSchema } from "@/lib/schemas";
 import {
-  createHold, extendHold, releaseHold, getTripSeatStates, resolveSeatNumbers,
+  createHold, updateHoldSeats, extendHold, releaseHold, getTripSeatStates, resolveSeatNumbers,
   getActiveHold, setHoldProvisional,
   SeatConflictError, type SeatStateRow,
 } from "@/server/services/seat-hold";
@@ -81,6 +81,22 @@ export async function holdSeatsAction(raw: unknown): Promise<Result<{
       seatNumbers: h.seatNumbers,
     } };
   } catch (e) { return fail(e, "holdSeats"); }
+}
+
+export async function updateHoldSeatsAction(
+  holdId: string, seatIds: string[],
+): Promise<Result<{ seatIds: string[]; seatNumbers: string[] }>> {
+  const session = await requireSession();
+  const parsed = updateHoldSeatsSchema.safeParse({ holdId, seatIds });
+  if (!parsed.success) return zodFail(parsed.error);
+  try {
+    const updated = await updateHoldSeats({
+      ...parsed.data, agentId: session.agentId,
+    });
+    return { ok: true, data: {
+      seatIds: updated.seatIds, seatNumbers: updated.seatNumbers,
+    } };
+  } catch (e) { return fail(e, "updateHoldSeats"); }
 }
 
 export async function extendHoldAction(holdId: string): Promise<Result<{

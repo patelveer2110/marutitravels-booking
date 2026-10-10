@@ -3,7 +3,7 @@
 import { and, eq, inArray, sql } from "drizzle-orm";
 import { db, type Tx } from "@/db";
 import {
-  bus, route, scheduleTemplate, seat, seatLayout, trip, tripSeatState,
+  booking, bus, route, scheduleTemplate, seat, seatLayout, trip, tripSeatState,
 } from "@/db/schema";
 import { writeAudit } from "@/server/audit";
 
@@ -19,13 +19,12 @@ export function localDateTimeToUtc(
   // Start from the naive UTC reading, then correct by the zone's offset at
   // that moment. Two passes settle DST boundaries; India has none, but this
   // keeps the helper correct if the office ever moves.
-  let guess = new Date(`${serviceDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`);
-  for (let i = 0; i < 2; i++) {
-    const asLocal = new Date(guess.toLocaleString("en-US", { timeZone }));
-    const asUtc = new Date(guess.toLocaleString("en-US", { timeZone: "UTC" }));
-    guess = new Date(guess.getTime() + (asUtc.getTime() - asLocal.getTime()));
-  }
-  return guess;
+  const target = new Date(`${serviceDate}T${String(h).padStart(2, "0")}:${String(m).padStart(2, "0")}:00Z`);
+  const localReading = new Date(target.toLocaleString("en-US", { timeZone }));
+  const utcReading = new Date(target.toLocaleString("en-US", { timeZone: "UTC" }));
+  // `target` represents the requested wall-clock time as UTC. Subtract the
+  // office timezone offset once to get the real UTC instant.
+  return new Date(target.getTime() - (localReading.getTime() - utcReading.getTime()));
 }
 
 export function addDays(serviceDate: string, days: number): string {
@@ -123,8 +122,8 @@ export async function createTrip(
  */
 export async function generateTrips(
   p: { fromDate: string; toDate: string; timeZone: string; agentId: string;
-       templateIds?: string[] },
-): Promise<{ created: number; skipped: number; errors: string[] }> {
+       templateIds?: string[]; daysOfWeek?: number[]; overwriteExisting?: boolean },
+): Promise<{ created: number; updated: number; skipped: number; errors: string[] }> {
   const templates = await db.select().from(scheduleTemplate).where(
     p.templateIds?.length
       ? and(eq(scheduleTemplate.isActive, true),
@@ -132,24 +131,50 @@ export async function generateTrips(
       : eq(scheduleTemplate.isActive, true),
   );
 
-  let created = 0, skipped = 0;
+  let created = 0, updated = 0, skipped = 0;
   const errors: string[] = [];
 
   for (let d = p.fromDate; d <= p.toDate; d = addDays(d, 1)) {
     const dow = dayOfWeek(d);
     for (const t of templates) {
-      if (!t.daysOfWeek.includes(dow)) continue;
+      if (!t.daysOfWeek.includes(dow) || (p.daysOfWeek && !p.daysOfWeek.includes(dow))) continue;
       if (t.validFrom && new Date(`${d}T23:59:59Z`) < t.validFrom) continue;
       if (t.validTo && new Date(`${d}T00:00:00Z`) > t.validTo) continue;
 
       const [existing] = await db.select({ id: trip.id }).from(trip).where(and(
-        eq(trip.busId, t.busId), eq(trip.serviceDate, d),
-        eq(trip.direction, t.direction),
+        eq(trip.templateId, t.id), eq(trip.serviceDate, d),
       )).limit(1);
-      if (existing) { skipped++; continue; }
+      if (existing && !p.overwriteExisting) { skipped++; continue; }
 
       try {
         await db.transaction(async (tx) => {
+          if (existing) {
+            const [current] = await tx.select().from(trip).where(eq(trip.id, existing.id))
+              .for("update").limit(1);
+            if (!current || current.status !== "SCHEDULED") {
+              throw new TripError("TRIP_NOT_EDITABLE", "Existing trip is no longer scheduled.");
+            }
+            const [occupied] = await tx.select({ count: sql<number>`count(*)::int` })
+              .from(tripSeatState).where(and(
+                eq(tripSeatState.tripId, existing.id),
+                sql`${tripSeatState.status} in ('BOOKED', 'HELD')`,
+              ));
+            if (Number(occupied?.count ?? 0) > 0) {
+              throw new TripError("TRIP_HAS_BOOKINGS",
+                "Existing trip has bookings or held seats and was not changed.");
+            }
+            const departureAt = localDateTimeToUtc(d, t.departureTime, p.timeZone);
+            let arrivalAt = localDateTimeToUtc(d, t.arrivalTime, p.timeZone);
+            if (arrivalAt <= departureAt) arrivalAt = new Date(arrivalAt.getTime() + 86_400_000);
+            if (current.busId === t.busId) {
+              await tx.update(trip).set({
+                routeId: t.routeId, direction: t.direction, serviceDate: d,
+                departureAt, arrivalAt, templateId: t.id,
+              }).where(eq(trip.id, existing.id));
+              return;
+            }
+            await tx.delete(trip).where(eq(trip.id, existing.id));
+          }
           await createTrip(tx, {
             routeId: t.routeId, direction: t.direction, busId: t.busId,
             serviceDate: d, departureTime: t.departureTime,
@@ -157,7 +182,8 @@ export async function generateTrips(
             templateId: t.id, agentId: p.agentId,
           });
         });
-        created++;
+        if (existing) updated++;
+        else created++;
       } catch (e) {
         const msg = e instanceof Error ? e.message : String(e);
         // a concurrent generator won the race for this slot — not an error
@@ -166,17 +192,20 @@ export async function generateTrips(
       }
     }
   }
-  return { created, skipped, errors };
+  return { created, updated, skipped, errors };
 }
 
 export interface TripListRow {
   id: string;
+  routeId: string;
   serviceDate: string;
   direction: "ONWARD" | "RETURN";
   departureAt: Date;
   arrivalAt: Date;
   status: "SCHEDULED" | "DEPARTED" | "CANCELLED" | "COMPLETED";
   totalSeats: number;
+  templateId: string | null;
+  bookingCount: number;
   busName: string;
   registrationNo: string;
   routeCode: string;
@@ -194,12 +223,18 @@ export async function listTripsForDate(
   const rows = await db
     .select({
       id: trip.id,
+      routeId: trip.routeId,
       serviceDate: trip.serviceDate,
       direction: trip.direction,
       departureAt: trip.departureAt,
       arrivalAt: trip.arrivalAt,
       status: trip.status,
       totalSeats: trip.totalSeats,
+      templateId: trip.templateId,
+      bookingCount: sql<number>`(
+        select count(*)::int from ${booking} b
+        where b.trip_id = ${trip.id}
+      )`,
       busName: bus.displayName,
       registrationNo: bus.registrationNo,
       routeCode: route.code,

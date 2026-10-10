@@ -20,8 +20,8 @@ export async function GET(request: NextRequest) {
       rows.map((r) => [r.pnr, r.customer, r.phone, r.travelDate, r.route, r.bus, r.status,
         moneyPaise(Number(r.totalPaise)), moneyPaise(Number(r.paidPaise)), r.paymentType]));
     return new NextResponse(html, { headers: {
-      "Content-Type": "application/vnd.ms-excel; charset=utf-8",
-      "Content-Disposition": `attachment; filename="finance-${range.from}-to-${range.to}.xls"`,
+      "Content-Type": "text/csv; charset=utf-8",
+      "Content-Disposition": `attachment; filename="finance-${range.from}-to-${range.to}.csv"`,
     }});
   }
 
@@ -31,7 +31,7 @@ export async function GET(request: NextRequest) {
     rows.map((r) => [r.pnr, r.customer, r.phone, r.seats, r.bus,
       r.paymentType, r.status, r.pickup ?? "—"]));
   return new NextResponse(html, { headers: {
-    "Content-Type": "application/vnd.ms-excel; charset=utf-8",
-    "Content-Disposition": `attachment; filename="bookings-${range.from}-to-${range.to}.xls"`,
+    "Content-Type": "text/csv; charset=utf-8",
+    "Content-Disposition": `attachment; filename="bookings-${range.from}-to-${range.to}.csv"`,
   }});
 }

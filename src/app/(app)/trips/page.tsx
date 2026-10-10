@@ -2,12 +2,18 @@ import Link from "next/link";
 import { eq } from "drizzle-orm";
 import { CalendarRange, Download, Printer } from "lucide-react";
 import { db } from "@/db";
-import { bus, route } from "@/db/schema";
+import { bus, route, scheduleTemplate } from "@/db/schema";
 import { listTripsForDate } from "@/server/services/trip";
-import { serviceDateOf, formatTime } from "@/lib/time";
-import { TripTools } from "./TripTools";
+import { OFFICE_TZ, serviceDateOf, formatTime } from "@/lib/time";
+import { DeleteEmptyTripButton, EditTripButton, TripTools } from "./TripTools";
 import { DatePicker } from "./DatePicker";
 import { directionLabel, journeyLabel } from "@/lib/journey";
+
+function timeInput(d: Date): string {
+  return new Intl.DateTimeFormat("en-GB", {
+    timeZone: OFFICE_TZ, hour: "2-digit", minute: "2-digit", hour12: false,
+  }).format(d);
+}
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +23,7 @@ export default async function TripsPage({
   const sp = await searchParams;
   const date = /^\d{4}-\d{2}-\d{2}$/.test(sp.date ?? "") ? sp.date! : serviceDateOf();
 
-  const [trips, routes, buses] = await Promise.all([
+  const [trips, routes, buses, schedules] = await Promise.all([
     listTripsForDate(date),
     db.select({ id: route.id, code: route.code, origin: route.origin,
                 destination: route.destination })
@@ -25,11 +31,18 @@ export default async function TripsPage({
     db.select({ id: bus.id, displayName: bus.displayName,
                 registrationNo: bus.registrationNo })
       .from(bus).where(eq(bus.isActive, true)).orderBy(bus.displayName),
+    db.select({
+      id: scheduleTemplate.id, routeId: scheduleTemplate.routeId,
+      direction: scheduleTemplate.direction, departureTime: scheduleTemplate.departureTime,
+      arrivalTime: scheduleTemplate.arrivalTime,
+      routeCode: route.code, origin: route.origin, destination: route.destination,
+    }).from(scheduleTemplate).innerJoin(route, eq(route.id, scheduleTemplate.routeId))
+      .where(eq(scheduleTemplate.isActive, true)),
   ]);
 
   return (
     <div className="p-4 sm:p-6">
-      <header className="mb-5 flex flex-wrap items-center justify-between gap-3">
+      <header className="mb-4">
         <div>
           <h1 className="text-lg font-semibold text-ink-900">Trips</h1>
           <p className="text-sm text-ink-500">
@@ -39,13 +52,23 @@ export default async function TripsPage({
             })}
           </p>
         </div>
-        <TripTools date={date}
-          routes={routes.map((r) => ({ id: r.id, label: `${r.code} · ${r.origin} → ${r.destination}` }))}
-          buses={buses.map((b) => ({ id: b.id, label: `${b.displayName} (${b.registrationNo})` }))} />
       </header>
 
       <nav className="mb-4">
-        <DatePicker date={date} today={serviceDateOf()} />
+        <DatePicker key={date} date={date} today={serviceDateOf()}
+          tools={
+            <TripTools date={date}
+              routes={routes.map((r) => ({
+                id: r.id, label: `${r.code} · ${r.origin} → ${r.destination}`,
+              }))}
+              buses={buses.map((b) => ({
+                id: b.id, label: `${b.displayName} (${b.registrationNo})`,
+              }))}
+              schedules={schedules.map((s) => ({
+                id: s.id,
+                label: `${s.routeCode} · ${s.origin} → ${s.destination} · ${s.direction} · ${s.departureTime}–${s.arrivalTime}`,
+              }))} />
+          } />
       </nav>
 
       {trips.length === 0 ? (
@@ -91,7 +114,7 @@ export default async function TripsPage({
                     style={{ width: `${pct}%` }} />
                 </div>
 
-                <div className="flex items-center justify-between text-xs">
+                <div className="mb-3 flex flex-wrap items-center justify-between gap-x-3 gap-y-1 text-xs">
                   <span className="text-ink-600">
                     <strong className="tabular-nums text-ink-900">{t.available}</strong> free
                     <span className="mx-1.5 text-ink-300">·</span>
@@ -103,31 +126,59 @@ export default async function TripsPage({
                       </>
                     )}
                   </span>
-                  <span className="flex items-center gap-2">
-                    {t.booked > 0 && (
-                      <>
-                        <Link href={`/trips/${t.id}/tickets`}
-                          className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-50">
-                          <Printer size={12} /> Tickets
-                        </Link>
-                        <Link href={`/api/trips/${t.id}/manifest`}
-                          className="inline-flex items-center gap-1 rounded-lg border border-[var(--border)] px-2.5 py-1.5 text-xs font-medium text-ink-700 hover:bg-ink-50"
-                          title="Download whole-bus passenger manifest">
-                          <Download size={12} /> Manifest
-                        </Link>
-                      </>
-                    )}
-                    {t.status === "SCHEDULED" ? (
-                      <Link href={`/book/${t.id}`}
-                        className="rounded-lg bg-brand-600 px-3 py-1.5 text-xs font-semibold text-white hover:bg-brand-700">
-                        Open seat map
-                      </Link>
-                    ) : (
-                      <span className="rounded-full bg-ink-100 px-2 py-0.5 text-[11px] font-medium text-ink-500">
-                        {t.status}
-                      </span>
-                    )}
-                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2 border-t border-[var(--border)] pt-3 sm:flex sm:flex-wrap sm:items-center sm:justify-end">
+                  {t.status === "SCHEDULED" && (
+                    <Link href={`/book/${t.id}`}
+                      className="col-span-2 inline-flex min-h-9 items-center justify-center rounded-lg bg-brand-600 px-3 py-2 text-xs font-semibold text-white transition hover:bg-brand-700 sm:order-last sm:col-span-1">
+                      Open seat map
+                    </Link>
+                  )}
+                  {t.booked > 0 ? (
+                    <Link href={`/trips/${t.id}/tickets`}
+                      className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-ink-700 transition hover:bg-ink-50">
+                      <Printer size={13} /> Tickets
+                    </Link>
+                  ) : (
+                    <button type="button" disabled
+                      title="Available after tickets are booked."
+                      className="inline-flex min-h-9 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-ink-400 opacity-60">
+                      <Printer size={13} /> Tickets
+                    </button>
+                  )}
+                  {t.booked > 0 ? (
+                    <Link href={`/api/trips/${t.id}/manifest`}
+                      className="inline-flex min-h-9 items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-ink-700 transition hover:bg-ink-50"
+                      title="Generate and download the passenger manifest">
+                      <Download size={13} /> Manifest
+                    </Link>
+                  ) : (
+                    <button type="button" disabled
+                      title="The manifest is available after passengers are booked."
+                      aria-label="Generate manifest (available after booking)"
+                      className="inline-flex min-h-9 cursor-not-allowed items-center justify-center gap-1.5 rounded-lg border border-[var(--border)] px-3 py-2 text-xs font-medium text-ink-400 opacity-60">
+                      <Download size={13} /> Manifest
+                    </button>
+                  )}
+                  {t.status === "SCHEDULED" && (
+                    <EditTripButton
+                      routes={routes.map((r) => ({ id: r.id, label: `${r.code} · ${r.origin} → ${r.destination}` }))}
+                      trip={{
+                        id: t.id, routeId: t.routeId, direction: t.direction,
+                        serviceDate: t.serviceDate,
+                        departureTime: timeInput(t.departureAt),
+                        arrivalTime: timeInput(t.arrivalAt),
+                      }} />
+                  )}
+                  {t.templateId && t.bookingCount === 0 && t.status === "SCHEDULED" && (
+                    <DeleteEmptyTripButton tripId={t.id} disabled={t.held > 0} />
+                  )}
+                  {t.status !== "SCHEDULED" && (
+                    <span className="col-span-2 self-center text-center text-[11px] font-medium uppercase tracking-wide text-ink-500 sm:col-span-1">
+                      {t.status}
+                    </span>
+                  )}
                 </div>
               </article>
             );

@@ -293,8 +293,22 @@ export function EditBookingForm({
                 </select>
               </Field>
               <Field label="Customer name"><input value={customerName} onChange={(e) => setCustomerName(e.target.value)} className={input} /></Field>
-              <Field label="Phone number"><input value={customerPhone} inputMode="tel" onChange={(e) => setCustomerPhone(e.target.value)} className={input} /></Field>
-              <Field label="Alternate phone"><input value={altPhone} inputMode="tel" onChange={(e) => setAltPhone(e.target.value)} className={input} /></Field>
+              <Field label="Phone number">
+                <input value={customerPhone} type="tel" inputMode="numeric"
+                  autoComplete="tel-national" maxLength={10} pattern="[6-9][0-9]{9}"
+                  title="Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9"
+                  onChange={(e) => setCustomerPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  className={input} />
+                <p className="mt-1 text-[11px] text-ink-500">10 digits only; do not include the country code.</p>
+              </Field>
+              <Field label="Alternate phone (optional)">
+                <input value={altPhone} type="tel" inputMode="numeric"
+                  autoComplete="tel-national" maxLength={10} pattern="[6-9][0-9]{9}"
+                  title="Enter a valid 10-digit mobile number starting with 6, 7, 8, or 9"
+                  onChange={(e) => setAltPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                  className={input} />
+                <p className="mt-1 text-[11px] text-ink-500">If entered, use 10 digits without the country code.</p>
+              </Field>
               <div className="grid grid-cols-2 gap-3">
                 <StopField label="Pickup" value={boardingPointId} options={pickups}
                   onSelect={setBoardingPointId} onText={setBoardingName} text={boardingName} />

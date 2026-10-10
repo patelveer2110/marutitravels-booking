@@ -6,7 +6,7 @@ import { buildGrid, groupKeyOf, type SeatLike } from "./geometry";
 
 export type SeatVisualState =
   | "AVAILABLE" | "SELECTED" | "HELD_BY_ME" | "HELD_BY_OTHER"
-  | "BOOKED" | "BLOCKED" | "EMPTY";
+  | "BOOKED" | "BOOKED_M" | "BOOKED_F" | "BOOKED_O" | "BLOCKED" | "EMPTY";
 
 const STATE_CLASS: Record<Exclude<SeatVisualState, "EMPTY">, string> = {
   AVAILABLE: "seat-available",
@@ -14,6 +14,9 @@ const STATE_CLASS: Record<Exclude<SeatVisualState, "EMPTY">, string> = {
   HELD_BY_ME: "seat-held-me",
   HELD_BY_OTHER: "seat-held-other",
   BOOKED: "seat-booked",
+  BOOKED_M: "seat-booked-m",
+  BOOKED_F: "seat-booked-f",
+  BOOKED_O: "seat-booked-o",
   BLOCKED: "seat-blocked",
 };
 
@@ -198,6 +201,9 @@ function DeckPanel<T extends SeatLike>({
                   {state === "BOOKED" && s.customerName && (
                     <span className="max-w-full truncate px-1 text-[9px] font-medium leading-none opacity-80">{s.customerName}</span>
                   )}
+                  {state.startsWith("BOOKED_") && s.customerName && (
+                    <span className="max-w-full truncate px-1 text-[9px] font-medium leading-none opacity-80">{s.customerName}</span>
+                  )}
                 </button>
                 )
               );
@@ -220,7 +226,10 @@ export function Legend() {
     ["SELECTED", "Selected"],
     ["HELD_BY_ME", "Held by you"],
     ["HELD_BY_OTHER", "Held by another agent"],
-    ["BOOKED", "Booked"],
+    ["BOOKED_M", "Booked · male"],
+    ["BOOKED_F", "Booked · female"],
+    ["BOOKED_O", "Booked · other"],
+    ["BOOKED", "Booked · gender not set"],
     ["BLOCKED", "Blocked"],
   ];
   return (

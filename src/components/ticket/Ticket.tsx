@@ -16,6 +16,10 @@ const DECK_SHORT: Record<TicketData["seats"][number]["deck"], string> = {
   UPPER: "Up", LOWER: "Lo", CABIN: "Cab",
 };
 
+const GENDER_LABEL: Record<NonNullable<TicketData["seats"][number]["gender"]>, string> = {
+  M: "Male", F: "Female", O: "Other",
+};
+
 function shortDate(serviceDate: string) {
   return new Date(`${serviceDate}T00:00:00Z`).toLocaleDateString("gu-IN", {
     weekday: "short", day: "2-digit", month: "short", timeZone: "UTC",
@@ -48,6 +52,22 @@ export function Ticket({
   const cancelled = ticket.status === "CANCELLED";
   const seatList = ticket.seats.map((s) => s.seatNumber).join(", ");
   const journey = journeyOf(ticket.origin, ticket.destination, ticket.direction);
+  const extraPersonCount = ticket.seats.reduce((count, seat) => count + seat.extraPersonCount, 0);
+  const extraPersonChargePaise = ticket.seats.reduce((total, seat) =>
+    total + seat.extraPersonCount * seat.extraPersonChargePaise, 0);
+  const singleExtraCount = ticket.seats
+    .filter((seat) => seat.berthType === "SLEEPER_SINGLE")
+    .reduce((count, seat) => count + seat.extraPersonCount, 0);
+  const singleExtraChargePaise = ticket.seats
+    .filter((seat) => seat.berthType === "SLEEPER_SINGLE")
+    .reduce((total, seat) => total + seat.extraPersonCount * seat.extraPersonChargePaise, 0);
+  const doubleExtraCount = ticket.seats
+    .filter((seat) => seat.berthType === "SLEEPER_DOUBLE")
+    .reduce((count, seat) => count + seat.extraPersonCount, 0);
+  const doubleExtraChargePaise = ticket.seats
+    .filter((seat) => seat.berthType === "SLEEPER_DOUBLE")
+    .reduce((total, seat) => total + seat.extraPersonCount * seat.extraPersonChargePaise, 0);
+  const seatChargePaise = ticket.amountTotalPaise - extraPersonChargePaise;
   const showBreakdown =
     ticket.seats.length > 1 || ticket.seats.some((s) => s.passengerName || s.extraPersonCount > 0);
 
@@ -112,7 +132,8 @@ export function Ticket({
         <table className="t-extra t-detail">
           <thead>
             <tr>
-              <th>સીટ</th><th>પ્રકાર</th><th>મુસાફર</th><th>વધારાના</th><th className="t-right">ભાડું</th>
+              <th>સીટ</th><th>પ્રકાર</th><th>મુસાફર / લિંગ</th>
+              <th className="t-right">સીટ ભાડું</th>
             </tr>
           </thead>
           <tbody>
@@ -120,30 +141,55 @@ export function Ticket({
               <tr key={s.seatNumber}>
                 <td className="t-strong">{s.seatNumber}</td>
                 <td className="t-dim">{BERTH_SHORT[s.berthType]} · {DECK_SHORT[s.deck]}</td>
-                <td className="t-dim">{s.passengerName || "—"}</td>
-                <td className="t-dim">{s.extraPersonCount ? `${s.extraPersonCount} વ્યક્તિ` : "—"}</td>
-                <td className="t-right">{formatINR(s.farePaise)}</td>
+                <td className="t-dim">
+                  {s.passengerName || "—"}{s.gender ? ` · ${GENDER_LABEL[s.gender]}` : ""}
+                </td>
+                <td className="t-right">
+                  {formatINR(s.farePaise - s.extraPersonCount * s.extraPersonChargePaise)}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
       )}
 
-      {ticket.note && <p className="t-note">{ticket.note}</p>}
+      {/* {ticket.note && <p className="t-note">{ticket.note}</p>} */}
+
+      {extraPersonCount > 0 && (
+        <p className="t-extra-summary">
+          {ticket.seats.length} seat{ticket.seats.length === 1 ? "" : "s"} ({formatINR(seatChargePaise)})
+          {" + "}
+          {[
+            singleExtraCount > 0
+              ? `${singleExtraCount} single-sofa extra ${singleExtraCount === 1 ? "person" : "people"} (${formatINR(singleExtraChargePaise)})`
+              : null,
+            doubleExtraCount > 0
+              ? `${doubleExtraCount} double-sofa extra ${doubleExtraCount === 1 ? "person" : "people"} (${formatINR(doubleExtraChargePaise)})`
+              : null,
+          ].filter(Boolean).join(" + ")}
+          {" = "}<strong>{formatINR(ticket.amountTotalPaise)} total</strong>
+        </p>
+      )}
 
       <div className="t-money">
         <span className="t-pay">
           ચુકવણી: {PAYMENT_LABEL[ticket.paymentType]}
           {due > 0
-            ? <span className="t-due"> · બાકી {formatINR(due)}</span>
+            ? <span className="t-payment-alert">
+                {ticket.paymentStatus === "UNPAID" ? "UNPAID" : "PARTIAL"}
+                {" · DUE "}{formatINR(due)}
+              </span>
             : <span className="t-paid"> · ચૂકવેલ</span>}
+
+          {ticket.note && <span className="t-note"> {ticket.note}</span>}
+
         </span>
         <span className="t-total">{formatINR(ticket.amountTotalPaise)}</span>
       </div>
 
       <footer className="t-foot">
         <span className="t-extra t-terms">{office.terms.join(" · ")}</span>
-        <span className="t-by">{ticket.bookedByName} · {stamp(ticket.bookedAt)}</span>
+        {/* <span className="t-by">{ticket.bookedByName} · {stamp(ticket.bookedAt)}</span> */}
       </footer>
     </article>
   );

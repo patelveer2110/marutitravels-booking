@@ -109,7 +109,7 @@ export function AppShell({
       )}
 
       {/* desktop sidebar */}
-      <aside className="no-print hidden w-56 shrink-0 flex-col border-r border-[var(--border)] bg-[var(--surface)] lg:flex">
+      <aside className="no-print sticky top-0 hidden h-screen w-56 shrink-0 flex-col overflow-y-auto border-r border-[var(--border)] bg-[var(--surface)] lg:flex">
         <div className="flex items-center gap-2 px-4 py-4">
           <span className="flex h-8 w-8 items-center justify-center rounded-lg bg-brand-600 text-white">
             <Bus size={17} />

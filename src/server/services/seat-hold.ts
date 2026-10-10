@@ -1,9 +1,9 @@
 // Server-side only. Not marked `server-only` so the concurrency test harness
 // can drive these functions directly under tsx.
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 import { db } from "@/db";
 import {
-  agent, booking, bus, route, seat, seatHold, trip, tripSeatState,
+  agent, booking, bookingSeat, bus, route, seat, seatHold, trip, tripSeatState,
 } from "@/db/schema";
 import { writeAudit } from "@/server/audit";
 
@@ -178,6 +178,131 @@ export async function createHold(p: {
   });
 }
 
+/** Replace the seat set on a live hold without dropping its existing seats first. */
+export async function updateHoldSeats(p: {
+  holdId: string; seatIds: string[]; agentId: string;
+}): Promise<HoldResult> {
+  const seatIds = [...new Set(p.seatIds)];
+  if (seatIds.length === 0) {
+    throw new HoldError("NO_SEATS", "Keep at least one seat reserved, or release the reservation.");
+  }
+
+  return db.transaction(async (tx) => {
+    const [hold] = await tx.select().from(seatHold)
+      .where(eq(seatHold.id, p.holdId)).for("update").limit(1);
+    if (!hold) throw new HoldError("HOLD_NOT_FOUND", "That reservation no longer exists.");
+    if (hold.agentId !== p.agentId) {
+      throw new HoldError("HOLD_NOT_YOURS", "That reservation belongs to another agent.");
+    }
+    if (hold.status !== "ACTIVE" || new Date(hold.expiresAt).getTime() <= Date.now()) {
+      throw new HoldError("HOLD_EXPIRED", "That reservation has expired. Please select the seats again.");
+    }
+
+    const currentRows = await tx.select({ seatId: tripSeatState.seatId })
+      .from(tripSeatState).where(and(
+        eq(tripSeatState.holdId, hold.id),
+        eq(tripSeatState.status, "HELD"),
+      ));
+    const targetIds = [...new Set([...seatIds, ...currentRows.map((row) => row.seatId)])];
+    const rows = await tx.select({
+      seatId: tripSeatState.seatId,
+      seatNumber: seat.seatNumber,
+      isActive: seat.isActive,
+      status: tripSeatState.status,
+      holdId: tripSeatState.holdId,
+      heldUntil: tripSeatState.heldUntil,
+    }).from(tripSeatState)
+      .innerJoin(seat, eq(seat.id, tripSeatState.seatId))
+      .where(and(
+        eq(tripSeatState.tripId, hold.tripId),
+        inArray(tripSeatState.seatId, targetIds),
+      ))
+      .orderBy(tripSeatState.seatId)
+      .for("update");
+
+    const byId = new Map(rows.map((row) => [row.seatId, row]));
+    const alreadyHeld = new Set(rows
+      .filter((row) => row.status === "HELD" && row.holdId === hold.id)
+      .map((row) => row.seatId));
+    const canClaim = seatIds.filter((id) => {
+      if (alreadyHeld.has(id)) return false;
+      const row = byId.get(id);
+      return !!row && row.isActive && (
+        row.status === "AVAILABLE" ||
+        (row.status === "HELD" && row.heldUntil &&
+          new Date(row.heldUntil).getTime() <= Date.now())
+      );
+    });
+
+    if (canClaim.length > 0) {
+      const claimed = await tx.update(tripSeatState).set({
+        status: "HELD",
+        holdId: hold.id,
+        heldUntil: hold.expiresAt,
+        bookingId: null,
+        version: sql`${tripSeatState.version} + 1`,
+        updatedAt: sql`now()`,
+      }).where(and(
+        eq(tripSeatState.tripId, hold.tripId),
+        inArray(tripSeatState.seatId, canClaim),
+        sql`(${tripSeatState.status} = 'AVAILABLE'
+          or (${tripSeatState.status} = 'HELD' and ${tripSeatState.heldUntil} < now()))`,
+      )).returning({ seatId: tripSeatState.seatId });
+
+      const claimedIds = new Set(claimed.map((row) => row.seatId));
+      const missing = seatIds.filter((id) =>
+        !alreadyHeld.has(id) && !claimedIds.has(id));
+      if (missing.length > 0) {
+        throw new SeatConflictError(
+          missing.map((id) => byId.get(id)?.seatNumber ?? id),
+          missing,
+        );
+      }
+    } else {
+      const missing = seatIds.filter((id) => !alreadyHeld.has(id));
+      if (missing.length > 0) {
+        throw new SeatConflictError(
+          missing.map((id) => byId.get(id)?.seatNumber ?? id),
+          missing,
+        );
+      }
+    }
+
+    const removedIds = rows
+      .filter((row) => row.status === "HELD" && row.holdId === hold.id && !seatIds.includes(row.seatId))
+      .map((row) => row.seatId);
+    if (removedIds.length > 0) {
+      await tx.update(tripSeatState).set({
+        status: "AVAILABLE", holdId: null, heldUntil: null,
+        version: sql`${tripSeatState.version} + 1`, updatedAt: sql`now()`,
+      }).where(and(
+        eq(tripSeatState.holdId, hold.id),
+        inArray(tripSeatState.seatId, removedIds),
+        eq(tripSeatState.status, "HELD"),
+      ));
+    }
+
+    const seatRows = await tx.select({ id: seat.id, seatNumber: seat.seatNumber })
+      .from(seat).where(inArray(seat.id, seatIds)).orderBy(seat.sortOrder);
+    await writeAudit(tx, {
+      agentId: p.agentId,
+      action: "HOLD_UPDATED",
+      entityType: "seat_hold",
+      entityId: hold.id,
+      after: { tripId: hold.tripId, seats: seatRows.map((row) => row.seatNumber) },
+    });
+
+    return {
+      holdId: hold.id,
+      tripId: hold.tripId,
+      expiresAt: new Date(hold.expiresAt),
+      seatIds,
+      seatNumbers: seatRows.map((row) => row.seatNumber),
+      serverNow: new Date(),
+    };
+  });
+}
+
 /** Give the agent more time. Capped, so a hold cannot be parked indefinitely. */
 export async function extendHold(p: {
   holdId: string; agentId: string; ttlMinutes?: number;
@@ -317,6 +442,7 @@ export interface SeatStateRow {
   heldUntil: Date | null;
   bookingId: string | null;
   customerName: string | null;
+  gender: "M" | "F" | "O" | null;
   blockReason: string | null;
   version: number;
 }
@@ -346,6 +472,7 @@ export async function getTripSeatStates(
       heldUntil: tripSeatState.heldUntil,
       bookingId: tripSeatState.bookingId,
       customerName: booking.primaryPassengerName,
+      gender: bookingSeat.gender,
       blockReason: tripSeatState.blockReason,
       version: tripSeatState.version,
       heldByAgentId: seatHold.agentId,
@@ -357,6 +484,10 @@ export async function getTripSeatStates(
     .leftJoin(seatHold, eq(seatHold.id, tripSeatState.holdId))
     .leftJoin(agent, eq(agent.id, seatHold.agentId))
     .leftJoin(booking, eq(booking.id, tripSeatState.bookingId))
+    .leftJoin(bookingSeat, and(
+      eq(bookingSeat.bookingId, tripSeatState.bookingId),
+      eq(bookingSeat.seatId, tripSeatState.seatId),
+    ))
     .where(eq(tripSeatState.tripId, tripId))
     .orderBy(seat.sortOrder);
 
@@ -383,6 +514,7 @@ export async function getTripSeatStates(
       heldUntil: expired ? null : heldUntil,
       bookingId: r.bookingId,
       customerName: r.customerName,
+      gender: r.gender,
       blockReason: r.blockReason,
       version: r.version,
     };

@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import type { Metadata } from "next";
 import { ChevronLeft, Pencil } from "lucide-react";
 import { requireSession } from "@/server/auth";
 import { getTicket } from "@/server/services/ticket";
@@ -9,6 +10,23 @@ import { PrintSheet } from "@/components/ticket/PrintSheet";
 import { CancelBookingButton } from "@/app/(app)/bookings/CancelBookingButton";
 
 export const dynamic = "force-dynamic";
+
+function ticketFileName(name: string, travelDate: string) {
+  const customer = name.normalize("NFKC").trim()
+    .replace(/[^\p{L}\p{N}]+/gu, "-")
+    .replace(/^-|-$/g, "") || "ticket";
+  return `${customer}-${travelDate}`;
+}
+
+export async function generateMetadata({
+  params,
+}: { params: Promise<{ bookingId: string }> }): Promise<Metadata> {
+  await requireSession();
+  const { bookingId } = await params;
+  const ticket = await getTicket(bookingId);
+  if (!ticket) return { title: "Ticket not found" };
+  return { title: ticketFileName(ticket.customerName, ticket.serviceDate) };
+}
 
 export default async function TicketPage({
   params,
@@ -28,6 +46,7 @@ export default async function TicketPage({
       </Link>
 
       <PrintSheet count={1} defaultFormat="a5"
+        downloadFileName={ticketFileName(ticket.customerName, ticket.serviceDate)}
         subtitle={`${ticket.pnr} · ${ticket.customerName} · seat ${ticket.seats.map((s) => s.seatNumber).join(", ")}`}>
         <Ticket ticket={ticket} office={office} />
       </PrintSheet>
